@@ -67,6 +67,9 @@
 *.sfd
 *.sfr
 
+# Vs Code
+*.vs
+
 # Miscellaneous
 *.tra
 *.bin
