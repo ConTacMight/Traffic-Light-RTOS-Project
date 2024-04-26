@@ -382,3 +382,44 @@ void AddTrafficLights(void)
 void SwitchTrafficLightTask(void)
 {
 }
+
+void HazardBuzzer(void)
+{
+	//uint16_t* x;
+  //uint16_t* y;
+  //uint8_t* select;
+	//BSP_Joystick_Init();
+	//BSP_Joystick_Input(x, y, select);
+	BSP_Button1_Init();
+	uint8_t current;
+	uint8_t update;
+	
+	uint16_t buzz =0;
+	
+	BSP_Buzzer_Init(buzz);
+	BSP_RGB_Init(0, 0, 0);
+	
+	while(1)
+	{
+		current = BSP_Button1_Input();
+		while(!current){
+		BSP_Buzzer_Set(50);
+		BSP_RGB_Set(500,0,0);
+		BSP_Delay1ms(1000); 
+		
+		BSP_Buzzer_Set(100);
+		BSP_RGB_Set(0,0,0);
+		BSP_Delay1ms(1000);
+		update++;
+			
+		if(update==3)
+		{
+			current = 1;
+			BSP_Buzzer_Set(0);
+			update = 0;
+		}
+				
+		}
+	}		
+	
+}
