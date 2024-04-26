@@ -363,13 +363,12 @@ void West_Light(void)
   }
 }
 
-void UpdateTrafficLights(int pairnumber, TrafficLightState state)
-{
-  DisableInterrupts();
-  EnableInterrupts();
-}
 void AddTrafficLights(void)
 {
+  BSP_LCD_DrawFastHLine(10, 100, 120, LCD_WHITE); // North Horizontal line
+  BSP_LCD_DrawFastHLine(10, 20, 120, LCD_WHITE);  // South Horizontal line
+  BSP_LCD_DrawFastVLine(95, 10, 120, LCD_WHITE);  // East Vertical line
+  BSP_LCD_DrawFastVLine(30, 10, 120, LCD_WHITE);  // West Vertical line
   BSP_LCD_DrawString(7, 0, "North", LCD_RED);
   TrafficLights[North].state = RED;
   BSP_LCD_DrawString(7, 12, "South", LCD_RED);

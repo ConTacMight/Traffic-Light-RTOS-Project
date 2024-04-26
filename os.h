@@ -199,7 +199,7 @@ uint32_t OS_MailBox_Recv(void);
  * desired intervals.
  */
 void static runperiodicevents(void);
-
+void DrawTrafficIntersection(void);
 /**
  * @brief Adds traffic lights to the system.
  *
