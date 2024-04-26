@@ -92,9 +92,7 @@ void Task0(void)
   static int32_t soundSum = 0;
   static int time = 0; // units of microphone sampling rate
 
-  TExaS_Task0();     // record system time in array, toggle virtual logic analyzer
-  Profile_Toggle0(); // viewed by a real logic analyzer to know Task0 started
-  // ADC is shared, but on the TM4C123 it is not critical with other ADC inputs
+  //  ADC is shared, but on the TM4C123 it is not critical with other ADC inputs
   BSP_Microphone_Input(&SoundData);
   soundSum = soundSum + (int32_t)SoundData;
   SoundArray[time] = SoundData;
@@ -202,8 +200,6 @@ void Task2(void)
   while (1)
   {
     data = OS_MailBox_Recv(); // acceleration data from Task 1
-    TExaS_Task2();            // records system time in array, toggles virtual logic analyzer
-    Profile_Toggle2();        // viewed by a real logic analyzer to know Task2 started
     Magnitude = sqrt32(data);
     EWMA = (ALPHA * Magnitude + (1023 - ALPHA) * EWMA) / 1024;
     if (AlgorithmState == LookingForMax)
@@ -434,8 +430,7 @@ void Task5(void)
   while (1)
   {
     OS_Wait(&NewData);
-    TExaS_Task5();     // records system time in array, toggles virtual logic analyzer
-    Profile_Toggle5(); // viewed by a real logic analyzer to know Task5 started
+
     soundSum = 0;
     for (int i = 0; i < SOUNDRMSLENGTH; i = i + 1)
     {
@@ -462,7 +457,7 @@ void Task5(void)
 // Task7 does nothing but never blocks or sleeps
 // Inputs:  none
 // Outputs: none
-// Use for watching Joystick Press 
+// Use for watching Joystick Press
 uint32_t Count7;
 void Task7(void)
 {
@@ -491,21 +486,19 @@ int main(void)
 {
   OS_Init();
   BSP_LCD_Init();
-	OS_InitSemaphore(&LCDmutex, 0);
-	//BSP_LCD_FillScreen(LCD_BLACK); Synonymous with below
+  OS_InitSemaphore(&LCDmutex, 0);
+  // BSP_LCD_FillScreen(LCD_BLACK); Synonymous with below
   BSP_LCD_FillScreen(BSP_LCD_Color565(0, 0, 0));
   Time = 0;
   OS_AddThreads(&Task7, &Task8);
+  OS_AddPeriodicEventThread(&North_Light, 2000); // Period: 2000 ms
+  OS_AddPeriodicEventThread(&South_Light, 2000); // Period: 2000 ms
+  OS_AddPeriodicEventThread(&East_Light, 2000);  // Period: 2000 ms
+  OS_AddPeriodicEventThread(&West_Light, 2000);  // Period: 2000 ms
   AddTrafficLights();
-  OS_AddPeriodicEventThread(&SwitchTrafficLightTask, 2000); // Period: 2000 ms
-  OS_Launch(BSP_Clock_GetFreq() / THREADFREQ);              // doesn't return, interrupts enabled in here
-  return 0;                                                 // this never executes
+  OS_Launch(BSP_Clock_GetFreq() / THREADFREQ); // doesn't return, interrupts enabled in here
+  return 0;                                    // this never executes
 }
-//******************Step 1**************************
-// implement and test the semaphores
-int32_t s1, s2;
-uint32_t Out;
-
 // Newton's method
 // s is an integer
 // sqrt(s) is an integer

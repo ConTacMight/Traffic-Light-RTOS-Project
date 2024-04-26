@@ -28,14 +28,13 @@
 #include <stdio.h>
 #include "./inc/CortexM.h"
 #include "./inc/BSP.h"
-#define NUMTHREADS 2  // maximum number of threads
-#define STACKSIZE 100 // number of 32-bit words in stack per thread
-#define PERIODIC_TASKS_NUM 1
+#define NUMTHREADS 2         // maximum number of threads
+#define STACKSIZE 100        // number of 32-bit words in stack per thread
 #define NULL_PTR ((void *)0) // Null pointer
-#define NUMPERIODIC 1
+#define NUMPERIODIC 4
 #define TIMER_FREQ 1000
 #define TIMER_PRIORITY 6
-#define NUMLIGHTS 2
+#define NUMLIGHTS 4
 
 #define BGCOLOR LCD_BLACK
 #define AXISCOLOR LCD_ORANGE
@@ -63,6 +62,18 @@
 #define R14 0x14141414
 #define R15 0x15151515 // PC register.
 #define R16 0x01000000 // Thumb bit register - PSR.
+typedef enum
+{
+  RED,
+  GREEN
+} TrafficLightState;
+typedef enum
+{
+  North,
+  East,
+  South,
+  West
+} TrafficLightDirection;
 struct tcb
 {
   int32_t *sp;      // pointer to stack (valid for threads not running
@@ -76,18 +87,13 @@ typedef struct eventTask
   uint32_t TaskPeriod;
   uint32_t TaskCounter;
 } eventTask_t, *eventTaskPt;
-typedef enum
-{
-  RED,
-  GREEN,
-} TrafficLightState;
 
 typedef struct
 {
-  int pair;
   TrafficLightState state;
+  TrafficLightDirection direction;
   int timer, cars;
-} TrafficLightPair;
+} TrafficLight;
 
 // ******** OS_Init ************
 // Initialize operating system, disable interrupts
@@ -122,6 +128,20 @@ int OS_AddPeriodicEventThread(void (*thread)(void), uint32_t period);
 // Outputs: none (does not return)
 // Errors: theTimeSlice must be less than 16,777,216
 void OS_Launch(uint32_t theTimeSlice);
+
+//******** OS_Suspend ***************
+// Called by main thread to cooperatively suspend operation
+// Inputs: none
+// Outputs: none
+// Will be run again depending on sleep/block status
+void OS_Suspend(void);
+
+// ******** OS_Sleep ************
+// place this thread into a dormant state
+// input:  number of msec to sleep
+// output: none
+// OS_Sleep(0) implements cooperative multitasking
+
 void OS_Sleep(uint32_t sleepTime);
 // ******** OS_InitSemaphore ************
 // Initialize counting semaphore
@@ -170,9 +190,43 @@ void OS_MailBox_Send(uint32_t data);
 // Outputs: data retreived
 // Errors:  none
 uint32_t OS_MailBox_Recv(void);
+
+/**
+ * @brief Executes the periodic events in the operating system.
+ *
+ * This function is responsible for running the periodic events in the operating system.
+ * It should be called periodically to ensure that the system tasks are executed at the
+ * desired intervals.
+ */
 void static runperiodicevents(void);
+
+/**
+ * @brief Adds traffic lights to the system.
+ *
+ * This function is responsible for adding traffic lights to the system.
+ * It performs the necessary initialization and configuration for the traffic lights.
+ *
+ * @return void
+ */
 void AddTrafficLights(void);
-void UpdateTrafficLights(int pairnumber, TrafficLightState state);
-void AddTrafficLights(void);
-void SwitchTrafficLightTask(void);
+
+/**
+ * @brief Controls the north traffic light.
+ */
+void North_Light(void);
+
+/**
+ * @brief Controls the south traffic light.
+ */
+void South_Light(void);
+
+/**
+ * @brief Controls the east traffic light.
+ */
+void East_Light(void);
+
+/**
+ * @brief Controls the west traffic light.
+ */
+void West_Light(void);
 #endif

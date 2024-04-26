@@ -11,7 +11,7 @@ static volatile int32_t LostMail;
 static volatile uint32_t MailData;
 // function definitions in osasm.s
 void StartOS(void);
-TrafficLightPair TrafficLights[NUMLIGHTS];
+TrafficLight TrafficLights[NUMLIGHTS];
 eventTask_t event_tasks[NUMPERIODIC];
 typedef struct tcb tcbType;
 tcbType tcbs[NUMTHREADS];
@@ -85,7 +85,6 @@ int OS_AddThreads(void (*thread0)(void), void (*thread1)(void))
 
   Stacks[0][STACKSIZE - 2] = (int32_t)(thread0);
   Stacks[1][STACKSIZE - 2] = (int32_t)(thread1);
-
   // initialize RunPt
   RunPt = &tcbs[0];
 
@@ -166,6 +165,17 @@ void Scheduler(void) // every time slice
     RunPt = RunPt->next;
   }
 }
+//******** OS_Suspend ***************
+// Called by main thread to cooperatively suspend operation
+// Inputs: none
+// Outputs: none
+// Will be run again depending on sleep/block status
+void OS_Suspend(void)
+{
+  STCURRENT = 0;        // any write to current clears it
+  INTCTRL = 0x04000000; // trigger SysTick
+  // next thread gets a full time slice
+}
 // ******** OS_Sleep ************
 // place this thread into a dormant state
 // input:  number of msec to sleep
@@ -173,15 +183,10 @@ void Scheduler(void) // every time slice
 // OS_Sleep(0) implements cooperative multitasking
 void OS_Sleep(uint32_t sleepTime)
 {
-  // ****IMPLEMENT THIS****
   RunPt->sleep = sleepTime; // set sleep parameter in TCB, same as Lab 3
-  //OS_Suspend();             // suspend, stops running.
+  OS_Suspend();             // suspend, stops running.
 }
-// ******** OS_InitSemaphore ************
-// Initialize counting semaphore
-// Inputs:  pointer to a semaphore
-//          initial value of semaphore
-// Outputs: none
+
 void OS_InitSemaphore(int32_t *semaPt, int32_t value)
 {
   DisableInterrupts();
@@ -189,43 +194,36 @@ void OS_InitSemaphore(int32_t *semaPt, int32_t value)
   EnableInterrupts();
 }
 
-// ******** OS_Wait ************
-// Decrement semaphore
-// Lab2 spinlock (does not suspend while spinning)
-// Lab3 block if less than zero
-// Inputs:  pointer to a counting semaphore
-// Outputs: none
 void OS_Wait(int32_t *semaPt)
 {
-  long crit = StartCritical();
-  while ((*semaPt) <= 0)
+  DisableInterrupts();
+  (*semaPt)--;
+  if ((*semaPt) < 0)
   {
-    EndCritical(crit);
-    crit = StartCritical();
+    RunPt->blocked = semaPt;
+    EnableInterrupts();
+    OS_Suspend();
   }
-  (*semaPt) = (*semaPt) - 1;
-  EndCritical(crit);
+  EnableInterrupts();
 }
 
-// ******** OS_Signal ************
-// Increment semaphore
-// Lab2 spinlock
-// Lab3 wakeup blocked thread if appropriate
-// Inputs:  pointer to a counting semaphore
-// Outputs: none
 void OS_Signal(int32_t *semaPt)
 {
-  //***YOU IMPLEMENT THIS FUNCTION*****
-  long crit = StartCritical();
-  *semaPt = *semaPt + 1;
-  EndCritical(crit);
+  tcbType *ptr;
+  DisableInterrupts();
+  (*semaPt)++;
+  if ((*semaPt) <= 0)
+  {
+    ptr = RunPt->next;
+    while (ptr->blocked != semaPt)
+    {
+      ptr = ptr->next;
+    }
+    ptr->blocked = NULL; // Wake up thread, not blocked.
+  }
+  EnableInterrupts();
 }
 
-// ******** OS_MailBox_Init ************
-// Initialize communication channel
-// Producer is an event thread, consumer is a main thread
-// Inputs:  none
-// Outputs: none
 void OS_MailBox_Init(void)
 {
   // include data field and semaphore
@@ -234,12 +232,6 @@ void OS_MailBox_Init(void)
   OS_InitSemaphore(&MailSend, 0);
 }
 
-// ******** OS_MailBox_Send ************
-// Enter data into the MailBox, do not spin/block if full
-// Use semaphore to synchronize with OS_MailBox_Recv
-// Inputs:  data to be sent
-// Outputs: none
-// Errors: data lost if MailBox already has data
 void OS_MailBox_Send(uint32_t data)
 {
   long crit = StartCritical();
@@ -251,14 +243,7 @@ void OS_MailBox_Send(uint32_t data)
   EndCritical(crit);
   OS_Signal(&MailSend);
 }
-// ******** OS_MailBox_Recv ************
-// retreive mail from the MailBox
-// Use semaphore to synchronize with OS_MailBox_Send
-// Lab 2 spin on semaphore if mailbox empty
-// Lab 3 block on semaphore if mailbox empty
-// Inputs:  none
-// Outputs: data retreived
-// Errors:  none
+
 uint32_t OS_MailBox_Recv(void)
 {
   uint32_t data;
@@ -268,96 +253,132 @@ uint32_t OS_MailBox_Recv(void)
   EndCritical(crit);
   return data;
 }
+int North_South = 0;
+int East_West = 0;
+void North_Light(void)
+{
+  if (East_West == 0)
+  {
+    switch (North_South)
+    {
+    case 0:
+      BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
+      break;
+    case 1:
+      BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
+      break;
+    /*case 2:
+      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
+      break;
+    case 3:
+      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
+      break;*/
+    default:
+      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
+      break;
+    }
+  }
+}
+void South_Light(void)
+{
+  if (East_West == 0)
+  {
+    switch (North_South)
+    {
+    case 0:
+      BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
+      North_South++;
+      break;
+    case 1:
+      BSP_LCD_DrawString(7, 12, "South", LCD_RED);
+      North_South++;
+      break;
+    case 2:
+      BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
+      North_South++;
+      break;
+    case 3:
+      BSP_LCD_DrawString(7, 12, "South", LCD_RED);
+      North_South = 0;
+      break;
+    default:
+      break;
+    }
+  }
+}
+void East_Light(void)
+{
+  if (North_South == 0)
+  {
+    switch (East_West)
+    {
+    case 0:
+      BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
+      break;
+    case 1:
+      BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
+      break;
+    /*case 2:
+      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
+      break;
+    case 3:
+      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
+      break;*/
+    default:
+      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
+      break;
+    }
+  }
+}
 
-/**
- * @brief Updates the traffic lights based on the pair number and state.
- *
- * This function updates the traffic lights based on the pair number and state provided.
- * It uses a switch statement to determine the pair number and another switch statement
- * to determine the state. Depending on the pair number and state, it calls the appropriate
- * function to draw the strings on the LCD display with the specified color.
- *
- * @param pairnumber The pair number of the traffic lights.
- * @param state The state of the traffic lights.
- */
+void West_Light(void)
+{
+  if (North_South == 0)
+  {
+    switch (East_West)
+    {
+    case 0:
+      BSP_LCD_DrawString(0, 6, "West", LCD_GREEN);
+      TrafficLights[West].state = GREEN;
+      East_West++;
+      break;
+    case 1:
+      BSP_LCD_DrawString(0, 6, "West", LCD_RED);
+      TrafficLights[West].state = RED;
+      East_West++;
+      break;
+    case 2:
+      BSP_LCD_DrawString(0, 6, "West", LCD_GREEN);
+      TrafficLights[West].state = GREEN;
+      East_West++;
+      break;
+    case 3:
+      TrafficLights[West].state = RED;
+      BSP_LCD_DrawString(0, 6, "West", LCD_RED);
+      East_West = 0;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 void UpdateTrafficLights(int pairnumber, TrafficLightState state)
 {
   DisableInterrupts();
-  switch (pairnumber)
-  {
-  case 0:
-    switch (state)
-    {
-    case GREEN:
-      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
-      BSP_LCD_DrawString(7, 12, "South", LCD_RED);
-      TrafficLights[pairnumber].state = RED;
-      break;
-    case RED:
-      BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
-      BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
-      TrafficLights[pairnumber].state = GREEN;
-    default:
-      break;
-    }
-    break;
-  case 1:
-    switch (state)
-    {
-    case GREEN:
-      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
-      BSP_LCD_DrawString(0, 6, "West", LCD_RED);
-      TrafficLights[pairnumber].state = RED;
-      break;
-    case RED:
-      BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
-      BSP_LCD_DrawString(0, 6, "West", LCD_GREEN);
-      TrafficLights[pairnumber].state = GREEN;
-    default:
-      break;
-    }
-    break;
-  default:
-    break;
-  }
   EnableInterrupts();
 }
-
-void SwitchTrafficLightTask(void)
-{
-  for (size_t i = 0; i < NUMLIGHTS; i++)
-  {
-    UpdateTrafficLights(i, TrafficLights[i].state);
-  }
-}
-/**
- * @brief Adds traffic lights to the LCD display.
- *
- * This function draws the labels for the traffic lights on the LCD display.
- * The labels include "North", "East", "South", and "West".
- *
- * @note This function assumes that the LCD display has already been initialized.
- */
-
 void AddTrafficLights(void)
 {
-  for (int i = 0; i < NUMLIGHTS; i++)
-  {
-    switch (i)
-    {
-    case 0:
-      TrafficLights[i].state = GREEN;
-      UpdateTrafficLights(i, TrafficLights[i].state);
-      TrafficLights[i].pair = i;
-      break;
-    case 1:
-      TrafficLights[i].state = RED;
-      UpdateTrafficLights(i, TrafficLights[i].state);
-      TrafficLights[i].pair = i;
-    default:
-      break;
-    }
-  }
+  BSP_LCD_DrawString(7, 0, "North", LCD_RED);
+  TrafficLights[North].state = RED;
+  BSP_LCD_DrawString(7, 12, "South", LCD_RED);
+  TrafficLights[South].state = RED;
+  BSP_LCD_DrawString(17, 6, "East", LCD_RED);
+  TrafficLights[East].state = RED;
+  BSP_LCD_DrawString(0, 6, "West", LCD_RED);
+  TrafficLights[West].state = RED;
 }
-
-
+void SwitchTrafficLightTask(void)
+{
+}
