@@ -28,14 +28,14 @@
 #include <stdio.h>
 #include "./inc/CortexM.h"
 #include "./inc/BSP.h"
-#define NUMTHREADS 2         // maximum number of threads
+#define NUMTHREADS 3         // maximum number of threads
 #define STACKSIZE 100        // number of 32-bit words in stack per thread
 #define NULL_PTR ((void *)0) // Null pointer
 #define NUMPERIODIC 4
 #define TIMER_FREQ 1000
 #define TIMER_PRIORITY 6
 #define NUMLIGHTS 4
-
+extern int32_t LCDmutex; // exclusive access to LCD
 #define BGCOLOR LCD_BLACK
 #define AXISCOLOR LCD_ORANGE
 #define MAGCOLOR LCD_YELLOW
@@ -44,6 +44,20 @@
 #define TEMPCOLOR LCD_LIGHTGREEN
 #define TOPTXTCOLOR LCD_WHITE
 #define TOPNUMCOLOR LCD_ORANGE
+
+#define LOCALCOUNTTARGET 5 // The number of valid measured magnitudes needed to confirm a local min or local max.  Increase this number for longer strides or more frequent measurements.
+#define AVGOVERSHOOT 25    // The amount above or below average a measurement must be to count as "crossing" the average.  Increase this number to reject increasingly hard shaking as steps.
+#define ACCELERATION_MAX 1400
+#define ACCELERATION_MIN 600
+#define ALPHA 128 // The degree of weighting decrease, a constant smoothing factor between 0 and 1,023. A higher ALPHA discounts older observations faster.
+                  // basic step counting algorithm is based on a forum post from
+                  // http://stackoverflow.com/questions/16392142/android-accelerometer-profiling/16539643#16539643
+#define SOUND_MAX 900
+#define SOUND_MIN 300
+#define LIGHT_MAX 200000
+#define LIGHT_MIN 0
+#define TEMP_MAX 1023
+#define TEMP_MIN 0
 
 #define R0 0x00000000
 #define R1 0x01010101
@@ -62,6 +76,16 @@
 #define R14 0x14141414
 #define R15 0x15151515 // PC register.
 #define R16 0x01000000 // Thumb bit register - PSR.
+static const uint16_t TrafficLightColors[] = {
+    LCD_RED,  // RED
+    LCD_GREEN // GREEN
+};
+static char *TrafficLightDirectionDescriptions[] = {
+    "North", // North
+    "East",  // East
+    "South", // South
+    "West"   // West
+};
 typedef enum
 {
   RED,
@@ -76,10 +100,13 @@ typedef enum
 } TrafficLightDirection;
 struct tcb
 {
-  int32_t *sp;      // pointer to stack (valid for threads not running
-  struct tcb *next; // linked-list pointer
-  int32_t sleep;    // nonzero if this thread is sleeping
-  int32_t *blocked; // nonzero if blocked on this semaphore
+  int32_t *sp;             // pointer to stack (valid for threads not running
+  struct tcb *next;        // linked-list pointer
+  int32_t sleep;           // nonzero if this thread is sleeping
+  int32_t *blocked;        // nonzero if blocked on this semaphore
+  uint8_t WorkingPriority; // used by the scheduler
+  uint8_t FixedPriority;   // permanent priority
+  uint32_t Age;            // time since last execution
 };
 typedef struct eventTask
 {
@@ -90,9 +117,11 @@ typedef struct eventTask
 
 typedef struct
 {
+  int posx, posy;
   TrafficLightState state;
   TrafficLightDirection direction;
   int timer, cars;
+  int crossing;
 } TrafficLight;
 
 // ******** OS_Init ************
@@ -108,7 +137,9 @@ void OS_Init(void);
 // Inputs: function pointers to four void/void main threads
 // Outputs: 1 if successful, 0 if this thread can not be added
 // This function will only be called once, after OS_Init and before OS_Launch
-int OS_AddThreads(void (*thread0)(void), void (*thread1)(void));
+int OS_AddThreads(void (*thread0)(void), uint32_t p0,
+                  void (*thread1)(void), uint32_t p1,
+                  void (*thread2)(void), uint32_t p2);
 
 //******** OS_AddPeriodicEventThreads ***************
 // Add two background periodic event threads
@@ -199,7 +230,7 @@ uint32_t OS_MailBox_Recv(void);
  * desired intervals.
  */
 void static runperiodicevents(void);
-void DrawTrafficIntersection(void);
+
 /**
  * @brief Adds traffic lights to the system.
  *
@@ -229,4 +260,17 @@ void East_Light(void);
  * @brief Controls the west traffic light.
  */
 void West_Light(void);
+void HazardBuzzer(void);
+/**
+ * @brief Displays the traffic light.
+ *
+ * This thread is responsible for displaying the traffic light on a display device.
+ * It is called to update the state of the traffic light based on the current traffic conditions.
+ *
+ */
+void DisplayTrafficLight(void);
+void ShakeDetection(void);
+uint32_t sqrt32(uint32_t s);
+void EmergencyResponse(void);
+void PedestrianCross(void);
 #endif

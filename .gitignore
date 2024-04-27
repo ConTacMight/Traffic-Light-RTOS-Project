@@ -68,7 +68,7 @@
 *.sfr
 
 # Vs Code
-*.vs
+*.vscode
 
 # Miscellaneous
 *.tra

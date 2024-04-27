@@ -54,10 +54,10 @@ int32_t SoundAvg;
 uint32_t LightData;
 int32_t TemperatureData; // 0.1C
 // semaphores
-int32_t NewData;    // true when new numbers to display on top of LCD
-int32_t LCDmutex;   // exclusive access to LCD
-int ReDrawAxes = 0; // non-zero means redraw axes on next display task
-
+int32_t NewData;            // true when new numbers to display on top of LCD
+int32_t LCDmutex;           // exclusive access to LCD
+int ReDrawAxes = 0;         // non-zero means redraw axes on next display task
+int32_t PedestrianCrossing; // Green Light Exclusion
 enum plotstate
 {
   Accelerometer,
@@ -156,19 +156,7 @@ enum state
   LookingForCross2  // looking for current magnitude to cross average magnitude, plus a constant
 };
 enum state AlgorithmState = LookingForMax;
-#define LOCALCOUNTTARGET 5 // The number of valid measured magnitudes needed to confirm a local min or local max.  Increase this number for longer strides or more frequent measurements.
-#define AVGOVERSHOOT 25    // The amount above or below average a measurement must be to count as "crossing" the average.  Increase this number to reject increasingly hard shaking as steps.
-#define ACCELERATION_MAX 1400
-#define ACCELERATION_MIN 600
-#define ALPHA 128 // The degree of weighting decrease, a constant smoothing factor between 0 and 1,023. A higher ALPHA discounts older observations faster.
-                  // basic step counting algorithm is based on a forum post from
-                  // http://stackoverflow.com/questions/16392142/android-accelerometer-profiling/16539643#16539643
-#define SOUND_MAX 900
-#define SOUND_MIN 300
-#define LIGHT_MAX 200000
-#define LIGHT_MIN 0
-#define TEMP_MAX 1023
-#define TEMP_MIN 0
+
 void drawaxes(void)
 {
   OS_Wait(&LCDmutex);
@@ -196,7 +184,6 @@ void Task2(void)
   localMin = 1024;
   localMax = 0;
   localCount = 0;
-  drawaxes();
   while (1)
   {
     data = OS_MailBox_Recv(); // acceleration data from Task 1
@@ -270,27 +257,6 @@ void Task2(void)
         AlgorithmState = LookingForMax;
       }
     }
-    if (ReDrawAxes)
-    {
-      drawaxes();
-      ReDrawAxes = 0;
-    }
-    OS_Wait(&LCDmutex);
-    if (PlotState == Accelerometer)
-    {
-      BSP_LCD_PlotPoint(Magnitude, MAGCOLOR);
-      BSP_LCD_PlotPoint(EWMA, EWMACOLOR);
-    }
-    else if (PlotState == Microphone)
-    {
-      BSP_LCD_PlotPoint(SoundData, SOUNDCOLOR);
-    }
-    else if (PlotState == Temperature)
-    {
-      BSP_LCD_PlotPoint(TemperatureData, TEMPCOLOR);
-    }
-    BSP_LCD_PlotIncrement();
-    OS_Signal(&LCDmutex);
     // update the LED
     switch (AlgorithmState)
     {
@@ -307,7 +273,8 @@ void Task2(void)
       BSP_RGB_Set(0, 0, 500);
       break;
     default:
-      BSP_RGB_Set(0, 0, 0);
+      // BSP_RGB_Set(0, 0, 0);
+      break;
     }
   }
 }
@@ -471,45 +438,60 @@ void Task7(void)
 // Check Mailbox from Task 7 and run flashing RED LEDs
 // Outputs time to FIFO for Task 9
 uint32_t Count8;
+extern int North_South;
+extern int East_West;
 void Task8(void)
 {
+  static uint8_t prev1 = 0, prev2 = 0;
+  uint8_t current;
   Count8 = 0;
   while (1)
   {
+    current = BSP_Button1_Input();
+    if ((current == 0) && (prev1 != 0))
+    {
+      East_West = -1;
+    }
+    prev1 = current;
+    current = BSP_Button2_Input();
+    if ((current == 0) && (prev2 != 0))
+    {
+      North_South = -1;
+    }
+    prev2 = current;
     Count8++;
     WaitForInterrupt();
   }
 }
 // Task 9 Filesystem output task that runs at low priority
 // Adds time that an emergency interrupt happened to FAT
+
+void BSP_LED_Init(void)
+{
+  BSP_RGB_Init(0, 0, 0);
+}
 int main(void)
 {
   OS_Init();
   BSP_LCD_Init();
   OS_InitSemaphore(&LCDmutex, 0);
+  OS_InitSemaphore(&PedestrianCrossing, 0);
+  // Task1_Init();
+  OS_MailBox_Init();
+  BSP_Buzzer_Init(0);
   // BSP_LCD_FillScreen(LCD_BLACK); Synonymous with below
   BSP_LCD_FillScreen(BSP_LCD_Color565(0, 0, 0));
+  BSP_LED_Init();
   Time = 0;
-  OS_AddThreads(&Task7, &Task8);
+  BSP_Button1_Init();
+  BSP_Button2_Init();
+  OS_AddThreads(&HazardBuzzer, 3, &DisplayTrafficLight, 1, &Task8, 2);
   OS_AddPeriodicEventThread(&North_Light, 2000); // Period: 2000 ms
   OS_AddPeriodicEventThread(&South_Light, 2000); // Period: 2000 ms
   OS_AddPeriodicEventThread(&East_Light, 2000);  // Period: 2000 ms
   OS_AddPeriodicEventThread(&West_Light, 2000);  // Period: 2000 ms
+  // OS_AddPeriodicEventThread(&Task1, 200);        // Period: 2000 ms
   AddTrafficLights();
   OS_Launch(BSP_Clock_GetFreq() / THREADFREQ); // doesn't return, interrupts enabled in here
   return 0;                                    // this never executes
-}
-// Newton's method
-// s is an integer
-// sqrt(s) is an integer
-uint32_t sqrt32(uint32_t s)
-{
-  uint32_t t;     // t*t will become s
-  int n;          // loop counter
-  t = s / 16 + 1; // initial guess
-  for (n = 16; n; --n)
-  { // will finish
-    t = ((t * t + s) / t) / 2;
-  }
-  return t;
 }
