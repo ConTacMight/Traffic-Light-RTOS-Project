@@ -17,6 +17,7 @@ typedef struct tcb tcbType;
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
 int32_t Stacks[NUMTHREADS][STACKSIZE];
+extern uint32_t Time;
 // ******** OS_Init ************
 // Initialize operating system, disable interrupts
 // Initialize OS controlled I/O: systick, bus clock as fast as possible
@@ -168,6 +169,10 @@ void OS_Launch(uint32_t theTimeSlice)
   StartOS();                                     // start on the first task
 }
 
+/**
+ * @brief Increment the age of all tasks in the task control block (TCB) list.
+ *        Decrease the working priority of tasks every 10 increments if their working priority is greater than 0.
+ */
 void IncrementAge(void)
 {
   tcbType *ptr;
@@ -198,12 +203,36 @@ void ResetPriority(tcbType *Ptr)
   Ptr->Age = 0;
 }
 
+/**
+ * @brief Runs the scheduler function every time slice.
+ *
+ * This function is responsible for selecting the next thread to run based on their priorities.
+ * It increments the time variable, updates the thread ages, and selects the thread with the highest working priority
+ * that is not blocked or sleeping to be the next running thread.
+ *
+ * @param None
+ * @return None
+ */
 // runs every ms
 void Scheduler(void) // every time slice
 {
-  RunPt = RunPt->next; // ROUND ROBIN, skip blocked and sleeping threads
-  while (RunPt->blocked || RunPt->sleep)
-    RunPt = RunPt->next;
+  Time++;
+  uint32_t maxprio = 255; // max
+  tcbType *pt;
+  tcbType *bpo;
+  pt = RunPt;
+  IncrementAge();
+  do
+  {
+    pt = pt->next; // skips at least one
+    if ((pt->WorkingPriority < maxprio) && (pt->blocked == 0) && (pt->sleep == 0))
+    {
+      maxprio = pt->WorkingPriority;
+      bpo = pt;
+    }
+  } while (RunPt != pt); // look at all possible threads
+  ResetPriority(bpo);
+  RunPt = bpo;
 }
 //******** OS_Suspend ***************
 // Called by main thread to cooperatively suspend operation
@@ -322,11 +351,17 @@ void North_Light(void)
       TrafficLights[North].state = RED;
       break;
     }
+    return;
   }
   else if (East_West == -1 && count < 3)
   {
+    BSP_LCD_DrawString(13, 0, "X", LCD_YELLOW);
     TrafficLights[North].state = GREEN;
+    TrafficLights[East].state = RED;
+    TrafficLights[West].state = RED;
+    return;
   }
+  TrafficLights[North].state = RED;
 }
 void South_Light(void)
 {
@@ -362,10 +397,25 @@ void South_Light(void)
   }
   else if (East_West == -1 && count < 3)
   {
+    BSP_LCD_DrawString(13, 12, "X", LCD_YELLOW);
     TrafficLights[South].state = GREEN;
+    TrafficLights[East].state = RED;
+    TrafficLights[West].state = RED;
     count++;
+    return;
   }
-  count = 0;
+  else if (count >= 3)
+  {
+    count = 0;
+    BSP_LCD_DrawString(13, 0, "X", LCD_BLACK);
+    BSP_LCD_DrawString(13, 12, "X", LCD_BLACK);
+    TrafficLights[North].state = RED;
+    TrafficLights[South].state = RED;
+    TrafficLights[East].state = RED;
+    TrafficLights[West].state = RED;
+    North_South = 0;
+    East_West = 0;
+  }
 }
 void East_Light(void)
 {
@@ -397,8 +447,13 @@ void East_Light(void)
   }
   else if (North_South == -1 && count < 3)
   {
+    BSP_LCD_DrawString(19, 8, "X", LCD_YELLOW);
     TrafficLights[East].state = GREEN;
+    TrafficLights[North].state = RED;
+    TrafficLights[South].state = RED;
+    return;
   }
+  TrafficLights[East].state = RED;
 }
 
 void West_Light(void)
@@ -434,39 +489,29 @@ void West_Light(void)
   }
   else if (North_South == -1 && count < 3)
   {
+    BSP_LCD_DrawString(0, 8, "X", LCD_YELLOW);
     TrafficLights[West].state = GREEN;
+    TrafficLights[North].state = RED;
+    TrafficLights[South].state = RED;
     count++;
+    return;
   }
-  count = 0;
-}
-extern uint32_t Magnitude; // will not overflow (3*1,023^2 = 3,139,587)
-                           // Exponentially Weighted Moving Average
-extern uint32_t EWMA;
-void ShakeDetection(void)
-{
-  uint32_t data;
-
-  while (1)
+  else if (count == 3)
   {
-    data = OS_MailBox_Recv();
-    Magnitude = sqrt32(data);
-    EWMA = (ALPHA * Magnitude + (1023 - ALPHA) * EWMA) / 1024;
-    // Check if the shake is above the threshold
-    if (Magnitude > (EWMA - AVGOVERSHOOT))
-    {
-      // Simulate an emergency situation
-      // DisableInterrupts();
-      EmergencyResponse();
-      // EnableInterrupts();
-    }
-
-    // Sleep or delay to reduce CPU usage
-    OS_Sleep(5000); // Adjust timing based on how responsive you need the detection to be
+    count = 0;
+    BSP_LCD_DrawString(0, 8, "X", LCD_BLACK);
+    BSP_LCD_DrawString(19, 8, "X", LCD_BLACK);
+    TrafficLights[North].state = RED;
+    TrafficLights[South].state = RED;
+    TrafficLights[East].state = RED;
+    TrafficLights[West].state = RED;
+    North_South = 0;
+    East_West = 0;
   }
 }
 void EmergencyResponse(void)
 {
-  for (size_t i = 0; i < 4; i++)
+  for (size_t i = 0; i < 5; i++)
   {
     BSP_RGB_Set(0, 0, 1023); // Turn on red LED at full brightness
     BSP_Buzzer_Set(512);
@@ -474,14 +519,16 @@ void EmergencyResponse(void)
     BSP_LCD_DrawString(7, 12, "South", LCD_RED);
     BSP_LCD_DrawString(17, 6, "East", LCD_RED);
     BSP_LCD_DrawString(0, 6, "West", LCD_RED);
-    BSP_Delay1ms(2000);   // Delay for 500 ms
+    BSP_Delay1ms(1000);
+    Time += 1000;
     BSP_RGB_Set(0, 0, 0); // Turn off LED
     BSP_Buzzer_Set(0);
     BSP_LCD_DrawString(7, 0, "North", LCD_BLACK);
     BSP_LCD_DrawString(7, 12, "South", LCD_BLACK);
     BSP_LCD_DrawString(17, 6, "East", LCD_BLACK);
     BSP_LCD_DrawString(0, 6, "West", LCD_BLACK);
-    BSP_Delay1ms(2000); // Delay for 500 ms
+    BSP_Delay1ms(1000);
+    Time += 1000;
   }
   TrafficLights[North].state = RED;
   TrafficLights[South].state = RED;
@@ -556,28 +603,6 @@ void HazardBuzzer(void)
   }
 }
 
-void PedestrianCross(void)
-{
-  static uint8_t prev1 = 0, prev2 = 0;
-  uint8_t current;
-  while (1)
-  {
-    current = BSP_Button1_Input();
-    if ((current == 0) && (prev1 != 0))
-    {
-      // East_West = -1;
-    }
-    prev1 = current;
-    current = BSP_Button2_Input();
-    if ((current == 0) && (prev2 != 0))
-    {
-      // North_South = -1;
-    }
-    prev2 = current;
-    // BSP_RGB_Set(500, 0, 0);
-    OS_Sleep(10); // debounce the switches
-  }
-}
 // Newton's method
 // s is an integer
 // sqrt(s) is an integer

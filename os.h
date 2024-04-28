@@ -236,28 +236,36 @@ void static runperiodicevents(void);
  *
  * This function is responsible for adding traffic lights to the system.
  * It performs the necessary initialization and configuration for the traffic lights.
- *
+ * JPK
  * @return void
  */
 void AddTrafficLights(void);
 
 /**
  * @brief Controls the north traffic light.
+ * Acceses the Traffic Light Array Struct.
+ * JPK
  */
 void North_Light(void);
 
 /**
- * @brief Controls the south traffic light.
+ * @brief Controls the various south traffic light states with switches.
+ * Acceses the Traffic Light Array Struct. Master.
+ * JPK
  */
 void South_Light(void);
 
 /**
  * @brief Controls the east traffic light.
+ * Acceses the Traffic Light Array Struct.
+ * JPK
  */
 void East_Light(void);
 
 /**
  * @brief Controls the west traffic light.
+ * Acceses the Traffic Light Array Struct. Master.
+ * JPK
  */
 void West_Light(void);
 void HazardBuzzer(void);
@@ -266,10 +274,12 @@ void HazardBuzzer(void);
  *
  * This thread is responsible for displaying the traffic light on a display device.
  * It is called to update the state of the traffic light based on the current traffic conditions.
+ * Acceses the Traffic Light Array Struct.
+ * JPK
  *
  */
 void DisplayTrafficLight(void);
-void ShakeDetection(void);
+
 uint32_t sqrt32(uint32_t s);
 void EmergencyResponse(void);
 void PedestrianCross(void);
