@@ -410,6 +410,21 @@
               <FileType>1</FileType>
               <FilePath>.\inc\Profile.c</FilePath>
             </File>
+            <File>
+              <FileName>eDisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\eDisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>eFile.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\eFile.c</FilePath>
+            </File>
+            <File>
+              <FileName>FlashProgram.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\FlashProgram.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

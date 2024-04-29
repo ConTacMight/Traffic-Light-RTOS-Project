@@ -28,14 +28,15 @@
 #include <stdio.h>
 #include "./inc/CortexM.h"
 #include "./inc/BSP.h"
-#define NUMTHREADS 3         // maximum number of threads
+#define NUMTHREADS 4         // maximum number of threads
 #define STACKSIZE 100        // number of 32-bit words in stack per thread
 #define NULL_PTR ((void *)0) // Null pointer
 #define NUMPERIODIC 4
 #define TIMER_FREQ 1000
 #define TIMER_PRIORITY 6
 #define NUMLIGHTS 4
-extern int32_t LCDmutex; // exclusive access to LCD
+        // exclusive access to LCD
+
 #define BGCOLOR LCD_BLACK
 #define AXISCOLOR LCD_ORANGE
 #define MAGCOLOR LCD_YELLOW
@@ -139,7 +140,8 @@ void OS_Init(void);
 // This function will only be called once, after OS_Init and before OS_Launch
 int OS_AddThreads(void (*thread0)(void), uint32_t p0,
                   void (*thread1)(void), uint32_t p1,
-                  void (*thread2)(void), uint32_t p2);
+                  void (*thread2)(void), uint32_t p2,
+                  void (*thread3)(void), uint32_t p3);
 
 //******** OS_AddPeriodicEventThreads ***************
 // Add two background periodic event threads
@@ -222,6 +224,29 @@ void OS_MailBox_Send(uint32_t data);
 // Errors:  none
 uint32_t OS_MailBox_Recv(void);
 
+// ******** OS_FIFO_Init ************
+// Initialize FIFO.
+// One event thread producer, one main thread consumer
+// Inputs:  none
+// Outputs: none
+void OS_FIFO_Init(void);
+
+// ******** OS_FIFO_Put ************
+// Put an entry in the FIFO.
+// Exactly one event thread puts,
+// do not block or spin if full
+// Inputs:  data to be stored
+// Outputs: 0 if successful, -1 if the FIFO is full
+int OS_FIFO_Put(uint32_t data);
+
+// ******** OS_FIFO_Get ************
+// Get an entry from the FIFO.
+// Exactly one main thread get,
+// do block if empty
+// Inputs:  none
+// Outputs: data retrieved
+uint32_t OS_FIFO_Get(void);
+
 /**
  * @brief Executes the periodic events in the operating system.
  *
@@ -268,7 +293,7 @@ void East_Light(void);
  * JPK
  */
 void West_Light(void);
-void HazardBuzzer(void);
+
 /**
  * @brief Displays the traffic light.
  *

@@ -11,7 +11,7 @@ static volatile int32_t LostMail;
 static volatile uint32_t MailData;
 // function definitions in osasm.s
 void StartOS(void);
-TrafficLight TrafficLights[NUMLIGHTS];
+
 eventTask_t event_tasks[NUMPERIODIC];
 typedef struct tcb tcbType;
 tcbType tcbs[NUMTHREADS];
@@ -77,13 +77,15 @@ void SetInitialStack(int i)
 // This function will only be called once, after OS_Init and before OS_Launch
 int OS_AddThreads(void (*thread0)(void), uint32_t p0,
                   void (*thread1)(void), uint32_t p1,
-                  void (*thread2)(void), uint32_t p2)
+                  void (*thread2)(void), uint32_t p2,
+                  void (*thread3)(void), uint32_t p3)
 {
   uint32_t crit = StartCritical();
   // initialize TCB circular list
   tcbs[0].next = &tcbs[1];
   tcbs[1].next = &tcbs[2];
-  tcbs[2].next = &tcbs[0];
+  tcbs[2].next = &tcbs[3];
+  tcbs[3].next = &tcbs[0];
 
   for (uint8_t i = 0; i < NUMTHREADS; i++)
   {
@@ -93,10 +95,12 @@ int OS_AddThreads(void (*thread0)(void), uint32_t p0,
   Stacks[0][STACKSIZE - 2] = (int32_t)(thread0);
   Stacks[1][STACKSIZE - 2] = (int32_t)(thread1);
   Stacks[2][STACKSIZE - 2] = (int32_t)(thread2);
+  Stacks[3][STACKSIZE - 2] = (int32_t)(thread3);
 
   tcbs[0].FixedPriority = tcbs[0].WorkingPriority = p0;
   tcbs[1].FixedPriority = tcbs[1].WorkingPriority = p1;
   tcbs[2].FixedPriority = tcbs[2].WorkingPriority = p2;
+  tcbs[3].FixedPriority = tcbs[3].WorkingPriority = p3;
   // initialize RunPt
   RunPt = &tcbs[0];
 
@@ -322,32 +326,85 @@ uint32_t OS_MailBox_Recv(void)
   EndCritical(crit);
   return data;
 }
+#define FSIZE 10 // can be any size
+uint32_t PutI;   // index of where to put next
+uint32_t GetI;   // index of where to get next
+uint32_t Fifo[FSIZE];
+int32_t CurrentSize; // 0 means FIFO empty, FSIZE means full
+uint32_t LostData;   // number of lost pieces of data
+
+// ******** OS_FIFO_Init ************
+// Initialize FIFO.
+// One event thread producer, one main thread consumer
+// Inputs:  none
+// Outputs: none
+void OS_FIFO_Init(void)
+{
+  PutI = GetI = 0;
+  OS_InitSemaphore(&CurrentSize, 0);
+}
+
+// ******** OS_FIFO_Put ************
+// Put an entry in the FIFO.
+// Exactly one event thread puts,
+// do not block or spin if full
+// Inputs:  data to be stored
+// Outputs: 0 if successful, -1 if the FIFO is full
+int OS_FIFO_Put(uint32_t data)
+{
+
+  if (CurrentSize == FSIZE)
+  {
+    LostData++;
+    return -1;
+  }
+  Fifo[PutI] = data; // store data in FIFO
+  PutI++;
+  if (PutI == FSIZE)
+  {
+    PutI = 0;
+  }
+  OS_Signal(&CurrentSize);
+
+  return 0; // success
+}
+
+// ******** OS_FIFO_Get ************
+// Get an entry from the FIFO.
+// Exactly one main thread get,
+// do block if empty
+// Inputs:  none
+// Outputs: data retrieved
+uint32_t OS_FIFO_Get(void)
+{
+  uint32_t data;
+  OS_Signal(&CurrentSize);
+  data = Fifo[GetI]; // retrieve data from FIFO
+  GetI++;
+  if (GetI == FSIZE)
+  {
+    GetI = 0;
+  }
+  return data;
+}
 int North_South = 0;
 int East_West = 0;
 int count = 0;
-void North_Light(void)
-{
+TrafficLight TrafficLights[NUMLIGHTS];
 
+void North_Light(void)
+{ // JPK
   if (East_West == 0)
   {
     switch (North_South)
     {
     case 0:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
       TrafficLights[North].state = GREEN;
       break;
     case 1:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
       TrafficLights[North].state = GREEN;
       break;
-    /*case 2:
-      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
-      break;
-    case 3:
-      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
-      break;*/
     default:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_RED);
       TrafficLights[North].state = RED;
       break;
     }
@@ -364,29 +421,24 @@ void North_Light(void)
   TrafficLights[North].state = RED;
 }
 void South_Light(void)
-{
-
+{ // JPK
   if (East_West == 0)
   {
     switch (North_South)
     {
     case 0:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
       TrafficLights[South].state = GREEN;
       North_South++;
       break;
     case 1:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_RED);
       TrafficLights[South].state = RED;
       North_South++;
       break;
     case 2:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
       TrafficLights[South].state = GREEN;
       North_South++;
       break;
     case 3:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_RED);
       TrafficLights[South].state = RED;
       North_South = 0;
       break;
@@ -416,30 +468,23 @@ void South_Light(void)
     North_South = 0;
     East_West = 0;
   }
+	count = 0;
+	BSP_LCD_DrawString(13, 0, "X", LCD_BLACK);
+  BSP_LCD_DrawString(13, 12, "X", LCD_BLACK);
 }
 void East_Light(void)
-{
-
+{ // JPK
   if (North_South == 0)
   {
     switch (East_West)
     {
     case 0:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
       TrafficLights[East].state = GREEN;
       break;
     case 1:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
       TrafficLights[East].state = GREEN;
       break;
-    /*case 2:
-      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
-      break;
-    case 3:
-      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
-      break;*/
     default:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_RED);
       TrafficLights[East].state = RED;
       break;
     }
@@ -457,28 +502,24 @@ void East_Light(void)
 }
 
 void West_Light(void)
-{
+{ // JPK
   if (North_South == 0)
   {
     switch (East_West)
     {
     case 0:
-      // BSP_LCD_DrawString(0, 6, "West", LCD_GREEN);
       TrafficLights[West].state = GREEN;
       East_West++;
       break;
     case 1:
-      // BSP_LCD_DrawString(0, 6, "West", LCD_RED);
       TrafficLights[West].state = RED;
       East_West++;
       break;
     case 2:
-      // BSP_LCD_DrawString(0, 6, "West", LCD_GREEN);
       TrafficLights[West].state = GREEN;
       East_West++;
       break;
     case 3:
-      // BSP_LCD_DrawString(0, 6, "West", LCD_RED);
       TrafficLights[West].state = RED;
       East_West = 0;
       break;
@@ -508,6 +549,9 @@ void West_Light(void)
     North_South = 0;
     East_West = 0;
   }
+	count = 0;
+  BSP_LCD_DrawString(0, 8, "X", LCD_BLACK);
+   BSP_LCD_DrawString(19, 8, "X", LCD_BLACK);
 }
 void EmergencyResponse(void)
 {
@@ -537,24 +581,23 @@ void EmergencyResponse(void)
   North_South = 0;
   East_West = 0;
 }
-extern int32_t PedestrianCrossing;
+
+extern int32_t LCDmutex;
 void DisplayTrafficLight(void)
-{
+{ // JPK
   while (1)
   {
-    // OS_Wait(&LCDmutex);
     for (size_t i = 0; i < NUMLIGHTS; i++)
     {
       uint16_t color = TrafficLightColors[TrafficLights[i].state];
       char *description = TrafficLightDirectionDescriptions[TrafficLights[i].direction];
       BSP_LCD_DrawString(TrafficLights[i].posx, TrafficLights[i].posy, description, color);
     }
-    // OS_Signal(&LCDmutex);
     OS_Sleep(500);
   }
 }
 void AddTrafficLights(void)
-{
+{                                                 // JPK
   BSP_LCD_DrawFastHLine(10, 100, 120, LCD_WHITE); // North Horizontal line
   BSP_LCD_DrawFastHLine(10, 20, 120, LCD_WHITE);  // South Horizontal line
   BSP_LCD_DrawFastVLine(95, 10, 120, LCD_WHITE);  // East Vertical line
@@ -579,28 +622,6 @@ void AddTrafficLights(void)
   TrafficLights[West].state = RED;
   TrafficLights[West].posx = 0;
   TrafficLights[West].posy = 6;
-}
-uint16_t Joyx, Joyy;
-uint8_t JoystickPress;
-void HazardBuzzer(void)
-{
-  BSP_Joystick_Init();
-  uint8_t currentButtonState;
-
-  // BSP_Buzzer_Init(0); // Initialize the buzzer with 0 duty cycle (off)
-
-  while (1)
-  {
-    BSP_Joystick_Input(&Joyx, &Joyy, &JoystickPress);
-    currentButtonState = JoystickPress; // Read the current state of the button
-    if (currentButtonState == 0)
-    { // Check for button press
-      DisableInterrupts();
-      EmergencyResponse();
-      EnableInterrupts();
-    }
-    OS_Sleep(2000);
-  }
 }
 
 // Newton's method
