@@ -64,11 +64,9 @@ void FIFO_Thread(void) {
         // Mount directory if not already loaded
         MountDirectory();
         // Append data to a file using eFile_edit
-        status = OS_File_Append(Lab5.c, data); 
-        if(status != 0) {
-            // Handle error if file append fails
-        }
+        status = OS_File_Append(3, data); 
+        
     } else {
-        // Handle error if FIFO get fails
+        return -1;
     }
 }
