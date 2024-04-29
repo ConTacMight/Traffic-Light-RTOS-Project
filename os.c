@@ -6,7 +6,7 @@
 
 #include "os.h"
 #include "FIFO.h"
-#include "eFile.h"
+#include "eFile_edit.h"
 
 static int32_t MailSend;
 static volatile int32_t LostMail;
