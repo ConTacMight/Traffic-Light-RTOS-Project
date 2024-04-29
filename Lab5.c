@@ -90,10 +90,10 @@
 #include <stdint.h>
 #include "../inc/BSP.h"
 #include "../inc/CortexM.h"
-#include "eDisk.h"
+#include "FIFO.h"
 #include "../inc/Profile.h"
 #include "Texas.h"
-#include "eFile.h"
+#include "eFile_edit.h"
 
 // normally this access would be poor style,
 // but the access to internal data is used here for debugging
@@ -132,8 +132,8 @@ const uint16_t ColorArray[COLORSIZE] = {LCD_BLUE, LCD_BLUE, LCD_YELLOW, LCD_GREE
 // Output: none
 void DisplayDirectory(uint8_t index){
   uint16_t dirclr[256], fatclr[256];
-  volatile uint8_t *diraddr = (volatile uint8_t *)(EDISK_ADDR_MAX - 511); /* address of directory */
-  volatile uint8_t *fataddr = (volatile uint8_t *)(EDISK_ADDR_MAX - 255); /* address of FAT */
+  volatile uint8_t *diraddr = (volatile uint8_t *)(FIFO_BASE_ADDR); /* address of directory */
+  volatile uint8_t *fataddr = (volatile uint8_t *)(FIFO_BASE_ADDR + 512); /* address of FAT */
   int i, j;
   // set default color to gray
   for(i=0; i<256; i=i+1){
@@ -180,7 +180,7 @@ int main(void){
   DisableInterrupts();
   BSP_Clock_InitFastest();
   Profile_Init();               // initialize the 7 hardware profiling pins
-  eDisk_Init(0);
+  OS_FIFO_Init();
   BSP_Button1_Init();
   BSP_Button2_Init();
   BSP_LCD_Init();
@@ -196,7 +196,7 @@ int main(void){
     BSP_LCD_DrawString(0, 0, "                    ", LCD_YELLOW);
   }
   if(BSP_Button2_Input() == 0){ // erase if Button2 is pressed
-    BSP_LCD_DrawString(0, 0, "Erasing entire disk", LCD_YELLOW);
+    BSP_LCD_DrawString(0, 0, "Erasing", LCD_YELLOW);
     OS_File_Format();
     while(BSP_Button2_Input() == 0){};
     BSP_LCD_DrawString(0, 0, "                   ", LCD_YELLOW);
