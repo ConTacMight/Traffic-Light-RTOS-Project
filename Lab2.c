@@ -43,78 +43,8 @@ uint32_t sqrt32(uint32_t s);
 #define THREADFREQ 1000 // frequency in Hz of round robin scheduler
 
 //---------------- Global variables shared between tasks ----------------
-uint32_t Time;      // elasped time in 100 ms units
-uint32_t Steps;     // number of steps counted
-uint32_t Magnitude; // will not overflow (3*1,023^2 = 3,139,587)
-                    // Exponentially Weighted Moving Average
-uint32_t EWMA;      // https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average
-uint16_t SoundData; // raw data sampled from the microphone
-int32_t SoundAvg;
+uint32_t Time; // elasped time in 100 ms units
 
-uint32_t LightData;
-int32_t TemperatureData; // 0.1C
-// semaphores
-int32_t NewData;            // true when new numbers to display on top of LCD
-int32_t LCDmutex;           // exclusive access to LCD
-int ReDrawAxes = 0;         // non-zero means redraw axes on next display task
-int32_t PedestrianCrossing; // Green Light Exclusion
-enum plotstate
-{
-  Accelerometer,
-  Microphone,
-  Temperature
-};
-enum plotstate PlotState = Accelerometer;
-// color constants
-
-//------------ end of Global variables shared between tasks -------------
-
-//---------------- Task0 samples sound from microphone ----------------
-// Event thread run by OS in real time at 1000 Hz
-#define SOUNDRMSLENGTH 1000 // number of samples to collect before calculating RMS (may overflow if greater than 4104)
-int16_t SoundArray[SOUNDRMSLENGTH];
-// *********Task0_Init*********
-// initializes microphone
-// Task0 measures sound intensity
-// Inputs:  none
-// Outputs: none
-void Task0_Init(void)
-{
-  BSP_Microphone_Init();
-}
-// *********Task0*********
-// Periodic event thread runs in real time at 1000 Hz
-// collects data from microphone
-// Inputs:  none
-// Outputs: none
-void Task0(void)
-{
-  static int32_t soundSum = 0;
-  static int time = 0; // units of microphone sampling rate
-
-  //  ADC is shared, but on the TM4C123 it is not critical with other ADC inputs
-  BSP_Microphone_Input(&SoundData);
-  soundSum = soundSum + (int32_t)SoundData;
-  SoundArray[time] = SoundData;
-  time = time + 1;
-  if (time == SOUNDRMSLENGTH)
-  {
-    SoundAvg = soundSum / SOUNDRMSLENGTH;
-    soundSum = 0;
-    OS_Signal(&NewData); // makes task5 run every 1 sec
-    time = 0;
-  }
-}
-/* ****************************************** */
-/*          End of Task0 Section              */
-/* ****************************************** */
-
-// *********Task7*********
-// Main thread scheduled by OS round robin preemptive scheduler
-// Task7 does nothing but never blocks or sleeps
-// Inputs:  none
-// Outputs: none
-// Use for watching Joystick Press
 uint32_t Count7;
 void Task7(void)
 {
@@ -164,8 +94,6 @@ int main(void)
 {
   OS_Init();
   BSP_LCD_Init();
-  OS_InitSemaphore(&LCDmutex, 0);
-  OS_InitSemaphore(&PedestrianCrossing, 0);
   OS_MailBox_Init();
   BSP_Buzzer_Init(0);
   // BSP_LCD_FillScreen(LCD_BLACK); Synonymous with below

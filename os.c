@@ -174,7 +174,7 @@ void OS_Launch(uint32_t theTimeSlice)
  *        Decrease the working priority of tasks every 10 increments if their working priority is greater than 0.
  */
 void IncrementAge(void)
-{
+{ // JPK
   tcbType *ptr;
   ptr = RunPt->next;
   while (ptr != RunPt)
@@ -198,7 +198,7 @@ void IncrementAge(void)
  * @param Ptr Pointer to the task control block (tcbType) of the task.
  */
 void ResetPriority(tcbType *Ptr)
-{
+{ // JPK
   Ptr->WorkingPriority = Ptr->FixedPriority;
   Ptr->Age = 0;
 }
@@ -215,7 +215,7 @@ void ResetPriority(tcbType *Ptr)
  */
 // runs every ms
 void Scheduler(void) // every time slice
-{
+{                    // JPK
   Time++;
   uint32_t maxprio = 255; // max
   tcbType *pt;
@@ -326,28 +326,18 @@ int North_South = 0;
 int East_West = 0;
 int count = 0;
 void North_Light(void)
-{
-
+{ // JPK
   if (East_West == 0)
   {
     switch (North_South)
     {
     case 0:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
       TrafficLights[North].state = GREEN;
       break;
     case 1:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_GREEN);
       TrafficLights[North].state = GREEN;
       break;
-    /*case 2:
-      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
-      break;
-    case 3:
-      BSP_LCD_DrawString(7, 0, "North", LCD_RED);
-      break;*/
     default:
-      // BSP_LCD_DrawString(7, 0, "North", LCD_RED);
       TrafficLights[North].state = RED;
       break;
     }
@@ -364,29 +354,24 @@ void North_Light(void)
   TrafficLights[North].state = RED;
 }
 void South_Light(void)
-{
-
+{ // JPK
   if (East_West == 0)
   {
     switch (North_South)
     {
     case 0:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
       TrafficLights[South].state = GREEN;
       North_South++;
       break;
     case 1:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_RED);
       TrafficLights[South].state = RED;
       North_South++;
       break;
     case 2:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_GREEN);
       TrafficLights[South].state = GREEN;
       North_South++;
       break;
     case 3:
-      // BSP_LCD_DrawString(7, 12, "South", LCD_RED);
       TrafficLights[South].state = RED;
       North_South = 0;
       break;
@@ -404,7 +389,7 @@ void South_Light(void)
     count++;
     return;
   }
-  else if (count >= 3)
+  else if (East_West == -1 && count == 3)
   {
     count = 0;
     BSP_LCD_DrawString(13, 0, "X", LCD_BLACK);
@@ -416,30 +401,22 @@ void South_Light(void)
     North_South = 0;
     East_West = 0;
   }
+  BSP_LCD_DrawString(13, 0, "X", LCD_BLACK);
+  BSP_LCD_DrawString(13, 12, "X", LCD_BLACK);
 }
 void East_Light(void)
-{
-
+{ // JPK
   if (North_South == 0)
   {
     switch (East_West)
     {
     case 0:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
       TrafficLights[East].state = GREEN;
       break;
     case 1:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_GREEN);
       TrafficLights[East].state = GREEN;
       break;
-    /*case 2:
-      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
-      break;
-    case 3:
-      BSP_LCD_DrawString(17, 6, "East", LCD_RED);
-      break;*/
     default:
-      // BSP_LCD_DrawString(17, 6, "East", LCD_RED);
       TrafficLights[East].state = RED;
       break;
     }
@@ -457,7 +434,7 @@ void East_Light(void)
 }
 
 void West_Light(void)
-{
+{ // JPK
   if (North_South == 0)
   {
     switch (East_West)
@@ -496,7 +473,7 @@ void West_Light(void)
     count++;
     return;
   }
-  else if (count == 3)
+  else if (North_South == -1 && count == 3)
   {
     count = 0;
     BSP_LCD_DrawString(0, 8, "X", LCD_BLACK);
@@ -539,22 +516,20 @@ void EmergencyResponse(void)
 }
 extern int32_t PedestrianCrossing;
 void DisplayTrafficLight(void)
-{
+{ // JPK
   while (1)
   {
-    // OS_Wait(&LCDmutex);
     for (size_t i = 0; i < NUMLIGHTS; i++)
     {
       uint16_t color = TrafficLightColors[TrafficLights[i].state];
       char *description = TrafficLightDirectionDescriptions[TrafficLights[i].direction];
       BSP_LCD_DrawString(TrafficLights[i].posx, TrafficLights[i].posy, description, color);
     }
-    // OS_Signal(&LCDmutex);
     OS_Sleep(500);
   }
 }
 void AddTrafficLights(void)
-{
+{                                                 // JPK
   BSP_LCD_DrawFastHLine(10, 100, 120, LCD_WHITE); // North Horizontal line
   BSP_LCD_DrawFastHLine(10, 20, 120, LCD_WHITE);  // South Horizontal line
   BSP_LCD_DrawFastVLine(95, 10, 120, LCD_WHITE);  // East Vertical line

@@ -35,7 +35,6 @@
 #define TIMER_FREQ 1000
 #define TIMER_PRIORITY 6
 #define NUMLIGHTS 4
-extern int32_t LCDmutex; // exclusive access to LCD
 #define BGCOLOR LCD_BLACK
 #define AXISCOLOR LCD_ORANGE
 #define MAGCOLOR LCD_YELLOW
