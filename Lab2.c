@@ -181,7 +181,7 @@ int main(void)
   OS_AddPeriodicEventThread(&South_Light, 2000); // Period: 2000 ms
   OS_AddPeriodicEventThread(&East_Light, 2000);  // Period: 2000 ms
   OS_AddPeriodicEventThread(&West_Light, 2000);  // Period: 2000 ms
-  // OS_AddPeriodicEventThread(&Task1, 200);        // Period: 2000 ms
+  OS_AddPeriodicEventThread(FIFO_Thread, 2000);        // Period: 2000 ms
   AddTrafficLights();
   OS_Launch(BSP_Clock_GetFreq() / THREADFREQ); // doesn't return, interrupts enabled in here
   return 0;                                    // this never executes
