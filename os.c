@@ -5,6 +5,7 @@
 // February 20, 2016
 
 #include "os.h"
+#include "FIFO.h"
 
 static int32_t MailSend;
 static volatile int32_t LostMail;
@@ -77,13 +78,15 @@ void SetInitialStack(int i)
 // This function will only be called once, after OS_Init and before OS_Launch
 int OS_AddThreads(void (*thread0)(void), uint32_t p0,
                   void (*thread1)(void), uint32_t p1,
-                  void (*thread2)(void), uint32_t p2)
+                  void (*thread2)(void), uint32_t p2,
+                  void (*thread2)(void), uint32_t p3)
 {
   uint32_t crit = StartCritical();
   // initialize TCB circular list
   tcbs[0].next = &tcbs[1];
   tcbs[1].next = &tcbs[2];
-  tcbs[2].next = &tcbs[0];
+  tcbs[2].next = &tcbs[3];
+  tcbs[3].next = &tcbs[0];
 
   for (uint8_t i = 0; i < NUMTHREADS; i++)
   {
@@ -93,10 +96,12 @@ int OS_AddThreads(void (*thread0)(void), uint32_t p0,
   Stacks[0][STACKSIZE - 2] = (int32_t)(thread0);
   Stacks[1][STACKSIZE - 2] = (int32_t)(thread1);
   Stacks[2][STACKSIZE - 2] = (int32_t)(thread2);
+  Stacks[3][STACKSIZE - 2] = (int32_t)(thread3);
 
   tcbs[0].FixedPriority = tcbs[0].WorkingPriority = p0;
   tcbs[1].FixedPriority = tcbs[1].WorkingPriority = p1;
   tcbs[2].FixedPriority = tcbs[2].WorkingPriority = p2;
+  tcbs[3].FixedPriority = tcbs[3].WorkingPriority = p3;
   // initialize RunPt
   RunPt = &tcbs[0];
 
@@ -593,7 +598,7 @@ void HazardBuzzer(void)
   {
     BSP_Joystick_Input(&Joyx, &Joyy, &JoystickPress);
     currentButtonState = JoystickPress; // Read the current state of the button
-    if (currentButtonState == 0)
+    if (currentButtonState == 0 && OS_FIFO_Put(Time) == 0)
     { // Check for button press
       DisableInterrupts();
       EmergencyResponse();
