@@ -139,7 +139,8 @@ void OS_Init(void);
 // This function will only be called once, after OS_Init and before OS_Launch
 int OS_AddThreads(void (*thread0)(void), uint32_t p0,
                   void (*thread1)(void), uint32_t p1,
-                  void (*thread2)(void), uint32_t p2);
+                  void (*thread2)(void), uint32_t p2,
+                  void (*thread2)(void), uint32_t p3);
 
 //******** OS_AddPeriodicEventThreads ***************
 // Add two background periodic event threads
