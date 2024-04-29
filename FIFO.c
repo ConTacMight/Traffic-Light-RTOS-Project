@@ -54,3 +54,21 @@ uint32_t OS_FIFO_Get(void) {
 	CurrentSize--; // Decrement current size
 	return data;
 }
+
+void FIFO_Thread(void) {
+    int32_t status;
+
+    // Read data from FIFO
+    status = OS_FIFO_Get(); 
+    if(status == 0) {
+        // Mount directory if not already loaded
+        MountDirectory();
+        // Append data to a file using eFile_edit
+        status = OS_File_Append(Lab5.c, data); 
+        if(status != 0) {
+            // Handle error if file append fails
+        }
+    } else {
+        // Handle error if FIFO get fails
+    }
+}
